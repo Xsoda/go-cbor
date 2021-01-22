@@ -105,6 +105,52 @@ func (val *CborValue) ContainerEmpty() bool {
 	return false
 }
 
+func New(value interface{}) *CborValue {
+	switch v := value.(type) {
+	case uint:
+	case uint8:
+	case uint16:
+	case uint32:
+	case uint64:
+	case int:
+	case int8:
+	case int16:
+	case int32:
+	case int64:
+		return NewInteger(int64(v))
+	case bool:
+		return NewBoolean(bool(v))
+	case string:
+		return NewString(string(v))
+	case []byte:
+		return NewBytestring([]byte(v))
+	case nil:
+		return NewNull()
+	case float32:
+	case float64:
+		return NewFloat(float64(v))
+	case map[string]interface{}:
+		val := NewMap()
+		for k, v := range map[string]interface{}(v) {
+			key := NewString(k)
+			ele := New(v)
+			if ele != nil {
+				pair := NewPair(key, ele)
+				val.ContainerInsertTail(pair)
+			}
+		}
+		return val
+	case []interface{}:
+		val := NewArray()
+		for _, item := range []interface{}(v) {
+			ele := New(item)
+			val.ContainerInsertTail(ele)
+		}
+		return val
+	}
+	return nil
+}
+
 func NewTag() *CborValue {
 	val := new(CborValue)
 	val.ctype = CBOR_TYPE_TAG
@@ -485,6 +531,14 @@ func (container *CborValue) PointerAdd(path string, val *CborValue) *CborValue {
 		break
 	}
 	return current
+}
+
+func (container *CborValue) PointerSet(path string, value interface{}) *CborValue {
+	val := New(value)
+	if val != nil {
+		return container.PointerAdd(path, val)
+	}
+	return nil
 }
 
 func (val *CborValue) Duplicate() *CborValue { // deep copy
