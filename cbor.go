@@ -43,12 +43,6 @@ const (
 	CBOR_SIMPLE_REAL int = 25
 )
 
-func assert(b bool, msg string) {
-	if !b {
-		panic(msg)
-	}
-}
-
 func (self *CborValue) Compare(T interface{}) bool {
 	switch T.(type) {
 	case string:
@@ -84,7 +78,7 @@ func (val *CborValue) IsArray() bool {
 	return val != nil && val.ctype == CBOR_TYPE_ARRAY
 }
 func (val *CborValue) IsInteger() bool {
-	return val != nil && (val.ctype == CBOR_TYPE_NEGINT || val.ctype == CBOR_TYPE_NEGINT)
+	return val != nil && (val.ctype == CBOR_TYPE_UINT || val.ctype == CBOR_TYPE_NEGINT)
 }
 func (val *CborValue) IsFloat() bool {
 	return val != nil && val.ctype == CBOR_TYPE_SIMPLE && val.ctrl == CBOR_SIMPLE_REAL
@@ -108,14 +102,23 @@ func (val *CborValue) ContainerEmpty() bool {
 func New(value interface{}) *CborValue {
 	switch v := value.(type) {
 	case uint:
+		return NewInteger(int64(v))
 	case uint8:
+		return NewInteger(int64(v))
 	case uint16:
+		return NewInteger(int64(v))
 	case uint32:
+		return NewInteger(int64(v))
 	case uint64:
+		return NewInteger(int64(v))
 	case int:
+		return NewInteger(int64(v))
 	case int8:
+		return NewInteger(int64(v))
 	case int16:
+		return NewInteger(int64(v))
 	case int32:
+		return NewInteger(int64(v))
 	case int64:
 		return NewInteger(int64(v))
 	case bool:
@@ -127,6 +130,7 @@ func New(value interface{}) *CborValue {
 	case nil:
 		return NewNull()
 	case float32:
+		return NewFloat(float64(v))
 	case float64:
 		return NewFloat(float64(v))
 	case map[string]interface{}:
@@ -236,7 +240,6 @@ func NewFloat(real float64) *CborValue {
 	return val
 }
 func NewPair(key *CborValue, val *CborValue) *CborValue {
-	assert(key.parent == nil && val.parent == nil, "key-value 's parent must be nil")
 	pair := new(CborValue)
 	pair.ctype = CBOR__TYPE_PAIR
 	pair.key = key
@@ -315,7 +318,6 @@ func (pair *CborValue) PairValue() *CborValue {
 }
 
 func (pair *CborValue) SetValue(val *CborValue) {
-	assert(val.parent != nil, "val.parent must be nil")
 	if pair != nil && pair.ctype == CBOR__TYPE_PAIR {
 		v := pair.value
 		v.parent = nil
@@ -325,31 +327,37 @@ func (pair *CborValue) SetValue(val *CborValue) {
 }
 
 func (s *CborValue) BlobAppendByte(b byte) {
-	if s.ctype == CBOR_TYPE_STRING || s.ctype == CBOR_TYPE_BYTESTRING {
+	if s.IsString() {
 		s.blob.WriteByte(b)
 	}
 }
 
 func (s *CborValue) BlobAppendRune(r rune) {
-	if s.ctype == CBOR_TYPE_STRING || s.ctype == CBOR_TYPE_BYTESTRING {
+	if s.IsString() {
 		s.blob.WriteRune(r)
 	}
 }
 
 func (s *CborValue) BlobAppend(str string) {
-	if s.ctype == CBOR_TYPE_STRING || s.ctype == CBOR_TYPE_BYTESTRING {
+	if s.IsString() {
 		s.blob.WriteString(str)
 	}
 }
 
 func (s *CborValue) BlobAppendFormat(format string, va ...interface{}) {
-	if s.ctype == CBOR_TYPE_STRING || s.ctype == CBOR_TYPE_BYTESTRING {
-		s.blob.WriteString(fmt.Sprintf(format, va))
+	if s.IsString() {
+		s.blob.WriteString(fmt.Sprintf(format, va...))
 	}
 }
 
 func (container *CborValue) ContainerInsertTail(val *CborValue) {
-	assert(val != nil && val.parent == nil, "ContainerInsertTail assert fail")
+	if val == nil || !container.IsContainer() {
+		return
+	}
+	if val.parent != nil {
+		val = val.Duplicate()
+	}
+
 	val.prev = container.last
 	if container.last != nil {
 		container.last.next = val;
@@ -362,7 +370,12 @@ func (container *CborValue) ContainerInsertTail(val *CborValue) {
 }
 
 func (container *CborValue) ContainerInsertHead(val *CborValue) {
-	assert(val != nil && val.parent == nil, "ContainerInsertHead assert fail")
+	if val == nil || !container.IsContainer() {
+		return
+	}
+	if val.parent != nil {
+		val = val.Duplicate()
+	}
 	val.next = container.first
 	if container.first != nil {
 		container.first.prev = val
@@ -375,8 +388,7 @@ func (container *CborValue) ContainerInsertHead(val *CborValue) {
 }
 
 func (container *CborValue) ContainerRemove(val *CborValue) {
-	assert(container != nil && val != nil && val.parent == container, "ContainerRemove assert fail")
-	if val.parent == container {
+	if val != nil && container.IsContainer() && val.parent == container {
 		prev := val.prev
 		next := val.next
 
@@ -399,6 +411,10 @@ func (container *CborValue) ContainerRemove(val *CborValue) {
 }
 
 func (container *CborValue) PointerGet(path string) *CborValue {
+	if !container.IsContainer() {
+		return nil
+	}
+
 	var current *CborValue = nil
 	split := strings.Split(path, "/")
 	for i, ele := range split {
@@ -542,6 +558,10 @@ func (container *CborValue) PointerSet(path string, value interface{}) *CborValu
 }
 
 func (val *CborValue) Duplicate() *CborValue { // deep copy
+	if val == nil {
+		return nil
+	}
+
 	if val.ctype == CBOR_TYPE_UINT || val.ctype == CBOR_TYPE_NEGINT {
 		return NewInteger(val.Integer())
 	} else if val.ctype == CBOR_TYPE_STRING {
@@ -572,29 +592,33 @@ func (val *CborValue) Duplicate() *CborValue { // deep copy
 }
 
 func (container *CborValue) ContainerInsertBefore(elm *CborValue, val *CborValue) {
-	prev := elm.prev
-	elm.prev = val
-	if prev != nil {
-		prev.next = val
-	} else {
-		container.first = val
+	if container.IsContainer() && elm != nil && elm.parent == container {
+		prev := elm.prev
+		elm.prev = val
+		if prev != nil {
+			prev.next = val
+		} else {
+			container.first = val
+		}
+		val.prev = prev
+		val.next = elm
+		val.parent = container
 	}
-	val.prev = prev
-	val.next = elm
-	val.parent = container
 }
 
 func (container *CborValue) ContainerInsertAfter(elm *CborValue, val *CborValue) {
-	next := elm.next
-	elm.next = val
-	if next != nil {
-		next.prev = val
-	} else {
-		container.last = val
+	if container.IsContainer() && elm != nil && elm.parent == container {
+		next := elm.next
+		elm.next = val
+		if next != nil {
+			next.prev = val
+		} else {
+			container.last = val
+		}
+		val.prev = elm
+		val.next = next
+		val.parent = container
 	}
-	val.prev = elm
-	val.next = next
-	val.parent = container
 }
 
 func (container *CborValue) ContainerFirst() *CborValue {
