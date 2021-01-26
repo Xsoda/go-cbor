@@ -80,7 +80,7 @@ func json_dumps(buf *bytes.Buffer, val *CborValue) {
 					off++
 				} else if b[off] >= 0xC0 && b[off] <= 0xDF  && off + 1 < l {
 					// 110xxxxx 10xxxxxx
-					var codepoint uint32 = uint32(b[off]) & 0x1f
+					codepoint = uint32(b[off]) & 0x1f
 					codepoint <<= 6
 					codepoint |= uint32(b[off + 1]) & 0x3f
 					off += 2
@@ -125,13 +125,17 @@ func json_dumps(buf *bytes.Buffer, val *CborValue) {
 
 func JSONEncode(val *CborValue) *bytes.Buffer {
 	ret := new(bytes.Buffer)
-	json_dumps(ret, val)
+	if val != nil {
+		json_dumps(ret, val)
+	}
 	return ret
 }
 
 
 
 func JSONDumpf(val *CborValue, path string) {
-	buf := JSONEncode(val)
-	ioutil.WriteFile(path, buf.Bytes(), 0644)
+	if val != nil {
+		buf := JSONEncode(val)
+		ioutil.WriteFile(path, buf.Bytes(), 0644)
+	}
 }

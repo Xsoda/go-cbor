@@ -64,6 +64,10 @@ func (self *CborValue) Compare(T interface{}) bool {
 		if self.ctype == CBOR_TYPE_SIMPLE && self.ctrl == CBOR_SIMPLE_REAL {
 			return self.Float() == T.(float64)
 		}
+	case nil:
+		if self.IsNull() {
+			return true
+		}
 	}
 	return false
 }
@@ -250,6 +254,10 @@ func NewPair(key *CborValue, val *CborValue) *CborValue {
 }
 
 func (val *CborValue) Integer() int64 {
+	if val == nil {
+		return 0
+	}
+
 	if val.ctype == CBOR_TYPE_UINT {
 		return int64(val.integer)
 	} else if val.ctype == CBOR_TYPE_NEGINT {
@@ -261,6 +269,10 @@ func (val *CborValue) Integer() int64 {
 }
 
 func (val *CborValue) Float() float64 {
+	if val == nil {
+		return 0.0
+	}
+
 	if val.ctype == CBOR_TYPE_UINT {
 		return float64(val.integer)
 	} else if val.ctype == CBOR_TYPE_NEGINT {
@@ -272,6 +284,10 @@ func (val *CborValue) Float() float64 {
 }
 
 func (val *CborValue) String() string {
+	if val == nil {
+		return ""
+	}
+
 	if val.ctype == CBOR_TYPE_STRING || val.ctype == CBOR_TYPE_BYTESTRING {
 		return val.blob.String()
 	}
@@ -279,6 +295,10 @@ func (val *CborValue) String() string {
 }
 
 func (val *CborValue) StringBytes() []byte {
+	if val == nil {
+		return []byte{}
+	}
+
 	if val.ctype == CBOR_TYPE_STRING || val.ctype == CBOR_TYPE_BYTESTRING {
 		return val.blob.Bytes()
 	}
@@ -286,6 +306,10 @@ func (val *CborValue) StringBytes() []byte {
 }
 
 func (val *CborValue) StringSize() int {
+	if val == nil {
+		return 0
+	}
+
 	if val.ctype == CBOR_TYPE_STRING || val.ctype == CBOR_TYPE_BYTESTRING {
 		return val.blob.Len()
 	}
@@ -293,6 +317,10 @@ func (val *CborValue) StringSize() int {
 }
 
 func (val *CborValue) Boolean() bool {
+	if val == nil {
+		return false
+	}
+
 	if val.ctype == CBOR_TYPE_SIMPLE {
 		if val.ctrl == CBOR_SIMPLE_TRUE {
 			return true
@@ -318,6 +346,10 @@ func (pair *CborValue) PairValue() *CborValue {
 }
 
 func (pair *CborValue) SetValue(val *CborValue) {
+	if val == nil || val.parent != nil {
+		return
+	}
+
 	if pair != nil && pair.ctype == CBOR__TYPE_PAIR {
 		v := pair.value
 		v.parent = nil
@@ -485,6 +517,9 @@ func (container *CborValue) PointerRemove(path string) *CborValue {
 func (container *CborValue) PointerAdd(path string, val *CborValue) *CborValue {
 	var current *CborValue = nil
 	last := false
+	if !container.IsContainer() || val == nil {
+		return nil
+	}
 	split := strings.Split(path, "/")
 	for i, ele := range split {
 		ele = strings.Replace(ele, "~1", "/", -1)
