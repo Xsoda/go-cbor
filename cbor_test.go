@@ -45,7 +45,8 @@ func TestNew(t *testing.T) {
 	m["boolean"] = false
 	m["string"] = "string"
 
-	v = New(m)
+	n := New(m)
+	v = n.Duplicate()
 	if v == nil {
 		t.Log("New map fail")
 		t.Fail()
@@ -69,6 +70,38 @@ func TestNew(t *testing.T) {
 
 	if v.PointerGet("/string").String() != "string" {
 		t.Log("get /string value fail")
+		t.Fail()
+	}
+	v.PointerAdd("/another", New("another"))
+
+	if v.PointerGet("/another").String() != "another" {
+		t.Log("get /another fail")
+		t.Fail()
+	}
+
+	if v.PointerRemove("/another").String() != "another" {
+		t.Log("remove /another fail")
+		t.Fail()
+	}
+
+	v.PointerSet("/dup", v)
+
+	s := []interface{}{"foo", "bar"}
+	v.PointerSet("/array", s)
+
+	if !v.PointerGet("/array").IsArray() {
+		t.Log("pointer set array fail")
+		t.Fail()
+	}
+
+	v.PointerMove("/string", "/array/-")
+	if v.PointerGet("/string").String() != "" {
+		t.Errorf("PointerMove fail: %s\n", JSONEncode(v).String())
+		t.Fail()
+	}
+
+	if v.PointerGet("/array/2").String() != "string" {
+		t.Log("pointer move fail")
 		t.Fail()
 	}
 }
@@ -202,6 +235,41 @@ func TestContainer(t *testing.T) {
 	ele = v.PointerGet("/-")
 	if ele == nil || ele.Integer() != 3 {
 		t.Log("assume tail element fail")
+		t.Fail()
+	}
+
+	ele = v.ContainerPrev(ele)
+	if ele == nil || ele.Integer() != 2 {
+		t.Log("container prev fail")
+		t.Fail()
+	}
+
+	ele = v.ContainerNext(ele)
+	if ele == nil || ele.Integer() != 3 {
+		t.Log("container next fail")
+		t.Fail()
+	}
+
+	ele = v.ContainerNext(ele)
+	if ele != nil {
+		t.Log("container tail next fail")
+		t.Fail()
+	}
+
+	ele = v.ContainerFirst()
+	if ele == nil || ele.Integer() != 0 {
+		t.Log("container first fail")
+		t.Fail()
+	}
+
+	if ele = v.ContainerNext(ele); ele == nil || ele.Integer() != 1 {
+		t.Log("container first next fail")
+		t.Fail()
+	}
+
+	ele = v.ContainerLast()
+	if ele == nil || ele.Integer() != 3 {
+		t.Log("container last fail")
 		t.Fail()
 	}
 }

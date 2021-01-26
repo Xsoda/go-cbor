@@ -155,6 +155,8 @@ func New(value interface{}) *CborValue {
 			val.ContainerInsertTail(ele)
 		}
 		return val
+	case *CborValue:
+		return value.(*CborValue).Duplicate()
 	}
 	return nil
 }
@@ -514,12 +516,173 @@ func (container *CborValue) PointerRemove(path string) *CborValue {
 	return nil
 }
 
+func (container *CborValue) PointerMove(path string, dest string) *CborValue {
+	var current *CborValue = nil
+	var root *CborValue = nil
+	var value *CborValue = nil
+	last := false
+	if !container.IsContainer() {
+		return nil
+	}
+
+	split := strings.Split(path, "/")
+	for i, ele := range split {
+		ele = strings.Replace(ele, "~1", "/", -1)
+		ele = strings.Replace(ele, "~0", "~", -1)
+		if i == len(split) - 1 {
+			last = true
+		}
+		if len(ele) == 0 && i == 0 {
+			current = container
+			continue
+		} else {
+			if current.IsMap() {
+				var elm *CborValue = nil
+				for elm = current.ContainerFirst(); elm != nil; elm = current.ContainerNext(elm) {
+					if elm.PairKey().Compare(ele) {
+						break
+					}
+				}
+				if elm != nil {
+					if last {
+						root = current
+						value = elm
+					} else {
+						current = elm.PairValue()
+					}
+					continue
+				}
+			} else if current.IsArray() {
+				if ele == "-" {
+					if last {
+						root = current
+						value = current.ContainerLast()
+					} else {
+						current = current.ContainerLast()
+					}
+					continue
+				} else {
+					idx, err := strconv.ParseInt(ele, 10, 32)
+					if err == nil && idx >= 0 {
+						var elm *CborValue = nil
+						for elm = current.ContainerFirst(); elm != nil && idx > 0; idx-- {
+							elm = current.ContainerNext(elm)
+						}
+						if elm != nil {
+							if last {
+								root = current
+								value = elm
+							} else {
+								current = elm
+							}
+							continue
+						}
+					}
+				}
+			}
+			current = nil
+			break
+		}
+	}
+
+	if current == nil || root == nil || value == nil {
+		return nil
+	}
+
+	last = false
+	current = nil
+
+	split = strings.Split(dest, "/")
+	for i, ele := range split {
+		ele = strings.Replace(ele, "~1", "/", -1)
+		ele = strings.Replace(ele, "~0", "~", -1)
+		if i == len(split) - 1 {
+			last = true
+		}
+		if current == value {
+			current = nil
+			break
+		}
+		if len(ele) == 0 && i == 0 {
+			current = container
+			continue
+		} else {
+			if current.IsMap() {
+				var elm *CborValue = nil
+				for elm = current.ContainerFirst(); elm != nil; elm = current.ContainerNext(elm) {
+					if elm.PairKey().Compare(ele) {
+						break
+					}
+				}
+				if elm != nil {
+					if last {
+						root.ContainerRemove(value)
+						if root.IsMap() {
+							tmp := value.PairValue()
+							tmp.parent = nil
+							value.value = nil
+							value = tmp
+						}
+						elm.SetValue(value)
+					} else {
+						current = elm.PairValue()
+					}
+					continue
+				}
+			} else if current.IsArray() {
+				if ele == "-" {
+					if last {
+						root.ContainerRemove(value)
+						if root.IsMap() {
+							tmp := value.PairValue()
+							tmp.parent = nil
+							value.value = nil
+							value = tmp
+						}
+						current.ContainerInsertTail(value)
+					} else {
+						current = current.ContainerLast()
+					}
+					continue
+				} else {
+					idx, err := strconv.ParseInt(ele, 10, 32)
+					if err == nil && idx >= 0 {
+						var elm *CborValue = nil
+						for elm = current.ContainerFirst(); elm != nil && idx > 0; idx-- {
+							elm = current.ContainerNext(elm)
+						}
+						if elm != nil {
+							if last {
+								root.ContainerRemove(value)
+								if root.IsMap() {
+									tmp := value.PairValue()
+									tmp.parent = nil
+									value.value = nil
+									value = tmp
+								}
+								current.ContainerInsertBefore(elm, value)
+							} else {
+								current = elm
+							}
+							continue
+						}
+					}
+				}
+			}
+			current = nil
+			break
+		}
+	}
+	return current
+}
+
 func (container *CborValue) PointerAdd(path string, val *CborValue) *CborValue {
 	var current *CborValue = nil
 	last := false
 	if !container.IsContainer() || val == nil {
 		return nil
 	}
+
 	split := strings.Split(path, "/")
 	for i, ele := range split {
 		ele = strings.Replace(ele, "~1", "/", -1)
@@ -594,7 +757,7 @@ func (container *CborValue) PointerSet(path string, value interface{}) *CborValu
 
 func (val *CborValue) Duplicate() *CborValue { // deep copy
 	if val == nil {
-		return nil
+		return New(nil)
 	}
 
 	if val.ctype == CBOR_TYPE_UINT || val.ctype == CBOR_TYPE_NEGINT {
