@@ -104,6 +104,31 @@ func TestNew(t *testing.T) {
 		t.Log("pointer move fail")
 		t.Fail()
 	}
+	v.PointerMove("/array/-", "/moved")
+
+	if v.PointerGet("/moved").String() != "string" {
+		t.Log("pointer move fail")
+		t.Fail()
+	}
+
+	v.PointerAdd("/array/-", New(100))
+	if v.PointerGet("/array/-").Integer() != 100 {
+		t.Log("pointer add fail")
+		t.Fail()
+	}
+
+	v.PointerAdd("/array/0", New(1000))
+
+	if v.PointerGet("/array/0").Integer() != 1000 {
+		t.Log("pointer add fail")
+		t.Fail()
+	}
+
+	v.PointerMove("/array/-", "/array/0")
+	if !v.PointerGet("/array/0").IsInteger() || v.PointerGet("/array/0").Integer() != 100 {
+		t.Log("pointer move fail")
+		t.Fail()
+	}
 }
 
 func TestPointerGet(t *testing.T) {

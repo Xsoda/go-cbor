@@ -421,6 +421,17 @@ func (container *CborValue) ContainerInsertHead(val *CborValue) {
 	val.parent = container
 }
 
+func (container *CborValue) ContainerSize() int {
+	var count = 0
+	if !container.IsContainer() {
+		return count
+	}
+	for val := container.ContainerFirst(); val != nil; val = container.ContainerNext(val) {
+		count += 1
+	}
+	return count
+}
+
 func (container *CborValue) ContainerRemove(val *CborValue) {
 	if val != nil && container.IsContainer() && val.parent == container {
 		prev := val.prev
@@ -628,6 +639,18 @@ func (container *CborValue) PointerMove(path string, dest string) *CborValue {
 						current = elm.PairValue()
 					}
 					continue
+				} else {
+					if last {
+						root.ContainerRemove(value)
+						if root.IsMap() {
+							tmp := value.PairValue()
+							tmp.parent = nil
+							value.value = nil
+							value = tmp
+						}
+						pair := NewPair(New(ele), value)
+						current.ContainerInsertTail(pair)
+					}
 				}
 			} else if current.IsArray() {
 				if ele == "-" {
@@ -731,7 +754,7 @@ func (container *CborValue) PointerAdd(path string, val *CborValue) *CborValue {
 						}
 						if elm != nil {
 							if last {
-								current.ContainerInsertBefore(val, elm)
+								current.ContainerInsertBefore(elm, val)
 							} else {
 								current = elm
 							}

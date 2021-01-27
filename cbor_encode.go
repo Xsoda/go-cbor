@@ -23,6 +23,9 @@ func write_qword(buf *bytes.Buffer, qw uint64) {
 }
 
 func cbor_dump(val *CborValue, dst *bytes.Buffer) {
+	if val == nil || dst == nil {
+		return
+	}
 	var ctype uint8 = uint8(val.ctype)
 	ctype <<= 5
 	if val.ctype == CBOR_TYPE_UINT || val.ctype == CBOR_TYPE_NEGINT {
@@ -77,15 +80,29 @@ func cbor_dump(val *CborValue, dst *bytes.Buffer) {
 		cbor_dump(val.key, dst)
 		cbor_dump(val.value, dst)
 	} else if val.ctype == CBOR_TYPE_ARRAY || val.ctype == CBOR_TYPE_MAP {
-		if val.ContainerEmpty() {
+		count := val.ContainerSize()
+		if count < 24 {
+			ctype |= uint8(count)
 			dst.WriteByte(ctype)
+		} else if count <= 0xFF {
+			ctype |= 24
+			dst.WriteByte(ctype)
+			dst.WriteByte(uint8(count))
+		} else if count <= 0xFFFF {
+			ctype |= 25
+			dst.WriteByte(ctype)
+			write_word(dst, uint16(count))
+		} else if count <= 0xFFFFFFFF {
+			ctype |= 26
+			dst.WriteByte(ctype)
+			write_dword(dst, uint32(count))
 		} else {
-			ctype |= 31
+			ctype |= 27
 			dst.WriteByte(ctype)
-			for ele := val.ContainerFirst(); ele != nil; ele = val.ContainerNext(ele) {
-				cbor_dump(ele, dst)
-			}
-			dst.WriteByte(0xFF)
+			write_qword(dst, uint64(count))
+		}
+		for ele := val.ContainerFirst(); ele != nil; ele = val.ContainerNext(ele) {
+			cbor_dump(ele, dst)
 		}
 	} else if val.ctype == CBOR_TYPE_TAG {
 		if val.tag_item < 24 {
