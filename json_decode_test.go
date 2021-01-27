@@ -1,15 +1,15 @@
 package cbor
 
-import "fmt"
 import "testing"
 
 func TestJSONDecode(t *testing.T) {
-	json := []byte(`{      "string": "foo\t\u4F60\u4f60\u000d\n",
+	json := []byte(`{     "string": "foo\\\/\b\f\v\t\u4F60\u4f60\u000d\n",
             // line comment
             "max_integer": 9223372036854775807,
             "min_integer": -9223372036854775808,
             /* block comment
             // line comment
+            /* nested block comment */
             -- end comment */
             "array": [true, false, null],
             "utf-8_2": "\u0123 two-byte UTF-8",
@@ -18,7 +18,12 @@ func TestJSONDecode(t *testing.T) {
             "e": 2.718281828459045235360287471352662498,
             "float64": 1.1,
             "float32": 3.4028234663852886e+38,
-            "float16": 1.5
+            "float16": 1.5,
+            "empty_object": {},
+            "empty_array": [],
+            "empty_string": "",
+            "boolean": false,
+            "null": null
         }`)
 	val, err := JSONDecode(json)
 	if val == nil || err != nil {
@@ -33,7 +38,6 @@ func TestJSONDecode(t *testing.T) {
 			t.Errorf("decode encoded json fail: %s", s.String())
 			t.Fail()
 		}
-		fmt.Println(s.String())
 	}
 
 	if val.PointerGet("/float16").Integer() != 1 {
@@ -43,6 +47,21 @@ func TestJSONDecode(t *testing.T) {
 
 	if val.PointerGet("/max_integer").Float() != 9223372036854775807.0 {
 		t.Log("convert /max_integer to float fail")
+		t.Fail()
+	}
+
+	if !val.PointerGet("/empty_object").IsMap() {
+		t.Log("parse empty object fail")
+		t.Fail()
+	}
+
+	if !val.PointerGet("/empty_array").IsArray() {
+		t.Log("parse empty array fail")
+		t.Fail()
+	}
+
+	if !val.PointerGet("/empty_string").IsString() {
+		t.Log("parse empty string fail")
 		t.Fail()
 	}
 }

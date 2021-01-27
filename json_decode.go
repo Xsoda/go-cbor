@@ -99,6 +99,8 @@ func (lexer *json_lexer) parse_object() (*CborValue, error) {
 		lexer.skip_whitespace()
 		if lexer.source[lexer.offset] == '}' {
 			if container.ContainerEmpty() {
+				lexer.offset += 1
+				lexer.lineoff += 1
 				return container, nil
 			} else {
 				return nil, fmt.Errorf("%d:%d excepted key-value pair", lexer.lineno, lexer.lineoff)
@@ -112,7 +114,6 @@ func (lexer *json_lexer) parse_object() (*CborValue, error) {
 		if key == nil || key.ctype != CBOR_TYPE_STRING {
 			return nil, fmt.Errorf("%d:%d excepted string element as object key", lexer.lineno, lexer.lineoff)
 		}
-
 		lexer.skip_whitespace()
 
 		if lexer.source[lexer.offset] == ':' {
@@ -244,7 +245,6 @@ func (lexer *json_lexer) parse_string() (*CborValue, error) {
 				lexer.offset += 2
 				lexer.lineoff += 2
 			} else if lexer.source[lexer.offset + 1] == 'u' {
-				var high_surrogate uint32 = 0
 				var low_surrogate uint32 = 0
 				lexer.offset += 2
 				lexer.lineoff += 2
@@ -276,6 +276,10 @@ func (lexer *json_lexer) parse_string() (*CborValue, error) {
 				} else {
 					str.BlobAppendRune(rune(high_surrogate));
 				}
+			} else {
+				str.BlobAppendByte(lexer.source[lexer.offset])
+				lexer.offset += 1
+				lexer.lineoff += 1
 			}
 		} else if lexer.source[lexer.offset] == '\r' || lexer.source[lexer.offset] == '\n' {
 			return nil, fmt.Errorf("%d:%d unexcepted line-break in string", lexer.lineno, lexer.lineoff)

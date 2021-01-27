@@ -22,8 +22,7 @@ func write_qword(buf *bytes.Buffer, qw uint64) {
 	buf.Write(flat)
 }
 
-func cbor_dump(val *CborValue) *bytes.Buffer {
-	var dst = new(bytes.Buffer)
+func cbor_dump(val *CborValue, dst *bytes.Buffer) {
 	var ctype uint8 = uint8(val.ctype)
 	ctype <<= 5
 	if val.ctype == CBOR_TYPE_UINT || val.ctype == CBOR_TYPE_NEGINT {
@@ -75,15 +74,41 @@ func cbor_dump(val *CborValue) *bytes.Buffer {
 			dst.Write(val.blob.Bytes())
 		}
 	} else if val.ctype == CBOR__TYPE_PAIR {
-		cbor_dump(val.key)
-		cbor_dump(val.value)
+		cbor_dump(val.key, dst)
+		cbor_dump(val.value, dst)
 	} else if val.ctype == CBOR_TYPE_ARRAY || val.ctype == CBOR_TYPE_MAP {
-		ctype |= 31
-		dst.WriteByte(ctype)
-		for ele := val.ContainerFirst(); ele != nil; ele = val.ContainerNext(ele) {
-			cbor_dump(ele)
+		if val.ContainerEmpty() {
+			dst.WriteByte(ctype)
+		} else {
+			ctype |= 31
+			dst.WriteByte(ctype)
+			for ele := val.ContainerFirst(); ele != nil; ele = val.ContainerNext(ele) {
+				cbor_dump(ele, dst)
+			}
+			dst.WriteByte(0xFF)
 		}
-		dst.WriteByte(0xFF)
+	} else if val.ctype == CBOR_TYPE_TAG {
+		if val.tag_item < 24 {
+			ctype |= uint8(val.tag_item)
+			dst.WriteByte(ctype)
+		} else if val.tag_item <= 0xFF {
+			ctype |= 24
+			dst.WriteByte(ctype)
+			dst.WriteByte(uint8(val.tag_item))
+		} else if val.tag_item <= 0xFFFF {
+			ctype |= 25
+			dst.WriteByte(ctype)
+			write_word(dst, uint16(val.tag_item))
+		} else if val.tag_item <= 0xFFFFFFFF {
+			ctype |= 26
+			dst.WriteByte(ctype)
+			write_dword(dst, uint32(val.tag_item))
+		} else {
+			ctype |= 27
+			dst.WriteByte(ctype)
+			write_qword(dst, uint64(val.tag_item))
+		}
+		cbor_dump(val.tag_content, dst)
 	} else if val.ctype == CBOR_TYPE_SIMPLE {
 		if val.ctrl == CBOR_SIMPLE_FALSE {
 			ctype |= 20
@@ -94,9 +119,12 @@ func cbor_dump(val *CborValue) *bytes.Buffer {
 		} else if val.ctrl == CBOR_SIMPLE_NULL {
 			ctype |= 22
 			dst.WriteByte(ctype)
+		} else if val.ctrl == CBOR_SIMPLE_UNDEF {
+			ctype |= 23
+			dst.WriteByte(ctype)
 		} else if val.ctrl == CBOR_SIMPLE_REAL {
 			u64 := math.Float64bits(val.real)
-			exp := int(u64 >> 32) & 0x7FF
+			exp := int(u64 >> 52) & 0x7FF
 			sign := int(u64 >> 63)
 			frac := u64 & 0xFFFFFFFFFFFFF
 			var frac_bitcnt int
@@ -185,12 +213,21 @@ func cbor_dump(val *CborValue) *bytes.Buffer {
 					write_qword(dst, u64)
 				}
 			}
-
+		} else {
+			if val.ctrl < 24 {
+				ctype |= uint8(val.ctrl)
+				dst.WriteByte(ctype)
+			} else {
+				ctype |= 24
+				dst.WriteByte(ctype)
+				dst.WriteByte(uint8(val.ctrl))
+			}
 		}
 	}
-	return dst
 }
 
 func CBOREncode(val *CborValue) *bytes.Buffer {
-	return cbor_dump(val)
+	var buf = new(bytes.Buffer)
+	cbor_dump(val, buf)
+	return buf
 }

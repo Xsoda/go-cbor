@@ -23,15 +23,15 @@ type CborValue struct {
 }
 
 const (
-	CBOR_TYPE_UINT int = iota
-	CBOR_TYPE_NEGINT
-	CBOR_TYPE_BYTESTRING
-	CBOR_TYPE_STRING
-	CBOR_TYPE_ARRAY
-	CBOR_TYPE_MAP
-	CBOR_TYPE_TAG
-	CBOR_TYPE_SIMPLE
-	CBOR__TYPE_PAIR
+	CBOR_TYPE_UINT       int = 0
+	CBOR_TYPE_NEGINT     int = 1
+	CBOR_TYPE_BYTESTRING int = 2
+	CBOR_TYPE_STRING     int = 3
+	CBOR_TYPE_ARRAY      int = 4
+	CBOR_TYPE_MAP        int = 5
+	CBOR_TYPE_TAG        int = 6
+	CBOR_TYPE_SIMPLE     int = 7
+	CBOR__TYPE_PAIR      int = 33
 )
 
 const (
